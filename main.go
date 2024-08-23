@@ -22,13 +22,15 @@ func main() {
 	// repository.SeedPostgresData(db)
 	
 	balanceRepo := repository.NewBalanceRepository(db)
-    balanceService := service.NewBalanceService(balanceRepo)
+	cryptoRepo := repository.NewCryptocurrencyRepository(db)
+    balanceService := service.NewBalanceService(balanceRepo, cryptoRepo)
     balanceHandler := handlers.NewBalanceHandler(balanceService)
 
     router := mux.NewRouter()
     router.HandleFunc("/balance/{userId}/{cryptoSymbol}", balanceHandler.GetUserBalance).Methods("GET")
     router.HandleFunc("/balance/{userId}", balanceHandler.GetAllUserBalances).Methods("GET")
-
+	router.HandleFunc("/balance/{amount}/{sourceCrypto}/{targetCrypto}", balanceHandler.GetConversionRateHandler).Methods("GET")
+	router.HandleFunc("/balance/convert/{userId}", balanceHandler.FinalizeConversionHandler).Methods("POST")
     http.ListenAndServe(":8080", router)
 
 }
