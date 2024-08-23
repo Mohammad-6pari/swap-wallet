@@ -1,0 +1,37 @@
+[
+    {
+        "id": 1,
+        "name": "Tether",
+        "symbol": "USDT",
+        "is_available": true,
+        "scale": 2
+    },
+    {
+        "id": 2,
+        "name": "Bitcoin",
+        "symbol": "BTC",
+        "is_available": true,
+        "scale": 2
+    },
+    {
+        "id": 3,
+        "name": "Ethereum",
+        "symbol": "ETH",
+        "is_available": true,
+        "scale": 5       
+    },
+    {
+        "id": 4,
+        "name": "Dogecoin",
+        "symbol": "DOGE",
+        "is_available": true,
+        "scale": 0
+        },
+    {
+        "id": 5,
+        "name": "Ripple",
+        "symbol": "XRP",
+        "is_available": true,
+        "scale": 1
+    }
+]
