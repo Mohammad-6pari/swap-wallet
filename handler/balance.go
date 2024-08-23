@@ -41,3 +41,22 @@ func (h *BalanceHandler) GetUserBalance(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
+
+func (h *BalanceHandler) GetAllUserBalances(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+
+	userID, err := strconv.Atoi(vars["userId"])
+	if err != nil {
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+
+	balances, err := h.balanceService.GetUserBalances(userID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(balances)
+}

@@ -27,6 +27,7 @@ func main() {
 
     router := mux.NewRouter()
     router.HandleFunc("/balance/{userId}/{cryptoSymbol}", balanceHandler.GetUserBalance).Methods("GET")
+    router.HandleFunc("/balance/{userId}", balanceHandler.GetAllUserBalances).Methods("GET")
 
     http.ListenAndServe(":8080", router)
 

@@ -7,9 +7,9 @@ import (
 	"math"
 	"net/http"
 	"time"
-
-	"swap-wallet/config"
 	"swap-wallet/repository"
+	"swap-wallet/config"
+
 )
 
 type BalanceService struct {
@@ -86,4 +86,31 @@ func (s *BalanceService) GetUserBalance(userID int, cryptoSymbol string) (float6
 	usdBalance := adjustedBalance * price
 
 	return adjustedBalance, usdBalance, nil
+}
+
+func (s *BalanceService) GetUserBalances(userID int) (map[string]map[string]float64, error) {
+	balances, err := s.balanceRepo.GetAllBalancesForUser(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]map[string]float64)
+
+	for _, balance := range balances {
+		price, err := s.getCryptoPriceInUSD(balance.Symbol)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get price for %s: %v", balance.Symbol, err)
+		}
+
+		divisor := math.Pow(10, float64(balance.Scale))
+		adjustedBalance := float64(balance.Balance) / divisor
+		usdBalance := adjustedBalance * price
+
+		result[balance.Symbol] = map[string]float64{
+			"cryptoBalance": adjustedBalance,
+			"usdBalance":    usdBalance,
+		}
+	}
+
+	return result, nil
 }
