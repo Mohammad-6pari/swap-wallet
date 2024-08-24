@@ -6,10 +6,6 @@ import (
     "strconv"
     "swap-wallet/service"
     "github.com/gorilla/mux"
-	"time"
-	"os"
-	"github.com/joho/godotenv"
-	"github.com/dgrijalva/jwt-go"
 )
 
 type BalanceHandler struct {
@@ -81,53 +77,44 @@ func (h *BalanceHandler) GetAllUserBalances(w http.ResponseWriter, r *http.Reque
 	json.NewEncoder(w).Encode(balances)
 }
 
-func (h *BalanceHandler) GetConversionRateHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-
-	amountStr := vars["amount"]
-	sourceCrypto := vars["sourceCrypto"]
-	targetCrypto := vars["targetCrypto"]
-
-	amount, err := strconv.ParseFloat(amountStr, 64)
-	if err != nil {
-		http.Error(w, "Invalid amount", http.StatusBadRequest)
+func (h *BalanceHandler) GetExchangePreviewHandler(w http.ResponseWriter, r *http.Request) {
+	sourceAmountStr := r.URL.Query().Get("sourceAmount")
+	source := r.URL.Query().Get("source")
+	target := r.URL.Query().Get("target")
+	if sourceAmountStr == "" || source == "" || target == "" {
+		http.Error(w, "Missing query parameters", http.StatusBadRequest)
 		return
 	}
 
-	conversionRate, convertedAmount, err := h.balanceService.GetConversionRate(sourceCrypto, targetCrypto, amount)
+	sourceAmount, err := strconv.ParseFloat(sourceAmountStr, 64)
+	if err != nil {
+		http.Error(w, "Invalid sourceAmount", http.StatusBadRequest)
+		return
+	}
+
+	userID, err := strconv.Atoi(r.Header.Get("userId"))
+	
+	if err != nil {
+        http.Error(w, "User ID Should Be Int", http.StatusBadRequest)
+		return
+	}
+
+	userExists := h.balanceService.UserExists(userID)
+	if !userExists {
+		http.Error(w, "Invalid Uesr ID", http.StatusNotFound)
+        return
+	}
+
+	convertedAmount, token, err := h.balanceService.GetExchangePreview(source, target, sourceAmount)
+	
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-		
-	err = godotenv.Load()
-	if err != nil {
-		http.Error(w, "Error loading .env file", http.StatusInternalServerError)
-		return
-	}
-	jwtSecret := []byte(os.Getenv("JWT_SECRET"))
-
-	// Create a JWT token with the necessary information
-	claims := jwt.MapClaims{
-		"exp":         time.Now().Add(60 * time.Second).Unix(),
-		"conversionRate": conversionRate,
-		"sourceCrypto":   sourceCrypto,
-		"targetCrypto":   targetCrypto,
-		"amount":         amount,
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(jwtSecret)
-	if err != nil {
-		http.Error(w, "Error generating token", http.StatusInternalServerError)
-		return
-	}
-
 	response := map[string]interface{}{
-		"conversionRate": conversionRate,
 		"convertedAmount": convertedAmount,
-		"token": tokenString,
+		"token":           token,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

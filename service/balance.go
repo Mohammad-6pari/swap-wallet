@@ -2,7 +2,6 @@ package service
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"math"
 	"net/http"
@@ -12,6 +11,8 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"os"
 	"log"
+	"fmt"
+	"github.com/joho/godotenv"
 )
 
 type BalanceService struct {
@@ -189,13 +190,44 @@ func (s *BalanceService) GetUserBalanceWithUsd(userID int, crypto string) (float
 	return cryptoBalance, UsdBalance, nil
 }
 
-func (s *BalanceService) GetConversionRate(sourceCrypto, targetCrypto string, amount float64) (float64, float64, error) {
+func createJWTToken(source, target string, sourceAmount, targetAmount float64) (string, error) {
+	err := godotenv.Load()
+	if err != nil {
+		return "", fmt.Errorf("error loading .env file: %v", err)
+	}
+
+	jwtSecret := []byte(os.Getenv("JWT_SECRET"))
+
+	claims := jwt.MapClaims{
+		"exp":            time.Now().Add(60 * time.Second).Unix(),
+		"sourceCrypto":   source,
+		"targetCrypto":   target,
+		"sourceAmount":   sourceAmount,
+		"targetAmount":   targetAmount,
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(jwtSecret)
+	if err != nil {
+		return "", fmt.Errorf("error generating token: %v", err)
+	}
+
+	return tokenString, nil
+}
+
+func (s *BalanceService) GetExchangePreview(sourceCrypto, targetCrypto string, amount float64) (float64, string, error) {
 	conversionRate, err := getCryptoPriceFromThirdParty(sourceCrypto, targetCrypto)
 	if err != nil {
-		return 0, 0, fmt.Errorf("failed to get price for %s: %v", sourceCrypto, err)
+		return 0, "", fmt.Errorf("failed to get price for %s: %v", sourceCrypto, err)
 	}
 	convertedAmount := amount * conversionRate
-	return conversionRate, convertedAmount, nil
+
+	token, err := createJWTToken(sourceCrypto, targetCrypto, amount, convertedAmount)
+	if err != nil {
+		return 0, "", fmt.Errorf("error in create JWT Toekn %s", err)
+	}
+
+	return convertedAmount, token, nil
 }
 
 func (s *BalanceService) FinalizeConversion(userID int, tokenString string) error {
