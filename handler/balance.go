@@ -5,7 +5,6 @@ import (
     "net/http"
     "strconv"
     "swap-wallet/service"
-    "github.com/gorilla/mux"
 )
 
 type BalanceHandler struct {
@@ -22,23 +21,16 @@ func NewBalanceHandler(balanceService *service.BalanceService) *BalanceHandler {
 }
 
 func (h *BalanceHandler) GetUserBalance(w http.ResponseWriter, r *http.Request) {
-    query := r.URL.Query()
-	crypto := query.Get("crypto")
-
-    userID, err := strconv.Atoi(r.Header.Get("userId"))
-    
+	userId, err := h.checkUserExists(r.Header.Get("userId"))
 	if err != nil {
-        http.Error(w, "User ID Should Be Int", http.StatusBadRequest)
-        return
-    }
-
-	userExists := h.balanceService.UserExists(userID)
-	if !userExists {
-		http.Error(w, "Invalid Uesr ID", http.StatusNotFound)
-        return
+        http.Error(w, "Invalid User ID", http.StatusBadRequest)
+		return
 	}
 
-    cryptoBalance, usdBalance, err := h.balanceService.GetUserBalanceWithUsd(userID, crypto)
+	query := r.URL.Query()
+	crypto := query.Get("crypto")
+
+    cryptoBalance, usdBalance, err := h.balanceService.GetUserBalanceWithUsd(userId, crypto)
 	if err != nil {
         http.Error(w, err.Error(), http.StatusInternalServerError)
         return
@@ -54,20 +46,12 @@ func (h *BalanceHandler) GetUserBalance(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *BalanceHandler) GetAllUserBalances(w http.ResponseWriter, r *http.Request) {
-	userID, err := strconv.Atoi(r.Header.Get("userId"))
-	
+	userId, err := h.checkUserExists(r.Header.Get("userId"))
 	if err != nil {
-        http.Error(w, "User ID Should Be Int", http.StatusBadRequest)
+        http.Error(w, "Invalid User ID", http.StatusBadRequest)
 		return
 	}
-
-	userExists := h.balanceService.UserExists(userID)
-	if !userExists {
-		http.Error(w, "Invalid Uesr ID", http.StatusNotFound)
-        return
-	}
-
-	balances, err := h.balanceService.GetUserBalancesWithUsd(userID)
+	balances, err := h.balanceService.GetUserBalancesWithUsd(userId)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -77,7 +61,27 @@ func (h *BalanceHandler) GetAllUserBalances(w http.ResponseWriter, r *http.Reque
 	json.NewEncoder(w).Encode(balances)
 }
 
+func (h *BalanceHandler) checkUserExists(userId string) (int, error) {
+	userID, err := strconv.Atoi(userId)
+	
+	if err != nil {
+        return -1, err
+	}
+
+	userExists := h.balanceService.UserExists(userID)
+	if !userExists {
+        return -1, err
+	}
+	return userID, nil
+}
+
 func (h *BalanceHandler) GetExchangePreviewHandler(w http.ResponseWriter, r *http.Request) {
+	_, err := h.checkUserExists(r.Header.Get("userId"))
+	if err != nil {
+        http.Error(w, "Invalid User ID", http.StatusBadRequest)
+		return
+	}
+	
 	sourceAmountStr := r.URL.Query().Get("sourceAmount")
 	source := r.URL.Query().Get("source")
 	target := r.URL.Query().Get("target")
@@ -90,19 +94,6 @@ func (h *BalanceHandler) GetExchangePreviewHandler(w http.ResponseWriter, r *htt
 	if err != nil {
 		http.Error(w, "Invalid sourceAmount", http.StatusBadRequest)
 		return
-	}
-
-	userID, err := strconv.Atoi(r.Header.Get("userId"))
-	
-	if err != nil {
-        http.Error(w, "User ID Should Be Int", http.StatusBadRequest)
-		return
-	}
-
-	userExists := h.balanceService.UserExists(userID)
-	if !userExists {
-		http.Error(w, "Invalid Uesr ID", http.StatusNotFound)
-        return
 	}
 
 	convertedAmount, token, err := h.balanceService.GetExchangePreview(source, target, sourceAmount)
@@ -122,14 +113,12 @@ func (h *BalanceHandler) GetExchangePreviewHandler(w http.ResponseWriter, r *htt
 }
 
 func (h *BalanceHandler) FinalizeConversionHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	userIDStr := vars["userId"]
-
-	userID, err := strconv.Atoi(userIDStr)
+	userId, err := h.checkUserExists(r.Header.Get("userId"))
 	if err != nil {
-		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+        http.Error(w, "Invalid User ID", http.StatusBadRequest)
 		return
 	}
+
 
 	var requestData struct {
 		Token string `json:"token"`
@@ -141,7 +130,7 @@ func (h *BalanceHandler) FinalizeConversionHandler(w http.ResponseWriter, r *htt
 		return
 	}
 
-	err = h.balanceService.FinalizeConversion(userID, requestData.Token)
+	err = h.balanceService.FinalizeConversion(userId, requestData.Token)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
