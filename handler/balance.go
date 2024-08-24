@@ -10,7 +10,6 @@ import (
 	"os"
 	"github.com/joho/godotenv"
 	"github.com/dgrijalva/jwt-go"
-
 )
 
 type BalanceHandler struct {
@@ -27,41 +26,52 @@ func NewBalanceHandler(balanceService *service.BalanceService) *BalanceHandler {
 }
 
 func (h *BalanceHandler) GetUserBalance(w http.ResponseWriter, r *http.Request) {
-    vars := mux.Vars(r)
+    query := r.URL.Query()
+	crypto := query.Get("crypto")
 
-    userID, err := strconv.Atoi(vars["userId"])
-    if err != nil {
-        http.Error(w, "Invalid user ID", http.StatusBadRequest)
+    userID, err := strconv.Atoi(r.Header.Get("userId"))
+    
+	if err != nil {
+        http.Error(w, "User ID Should Be Int", http.StatusBadRequest)
         return
     }
 
-    cryptoSymbol := vars["cryptoSymbol"]
+	userExists := h.balanceService.UserExists(userID)
+	if !userExists {
+		http.Error(w, "Invalid Uesr ID", http.StatusNotFound)
+        return
+	}
 
-    cryptoBalance, usdBalance, err := h.balanceService.GetUserBalance(userID, cryptoSymbol)
-    if err != nil {
+    cryptoBalance, usdBalance, err := h.balanceService.GetUserBalanceWithUsd(userID, crypto)
+	if err != nil {
         http.Error(w, err.Error(), http.StatusInternalServerError)
         return
     }
 
 	response := map[string]interface{}{
-		"symbol": cryptoSymbol,
+		"crypto": crypto,
 		"cryptoBalance": cryptoBalance,
-		"usdBalance":    usdBalance,
+		"USDBalance":    usdBalance,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
 
 func (h *BalanceHandler) GetAllUserBalances(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-
-	userID, err := strconv.Atoi(vars["userId"])
+	userID, err := strconv.Atoi(r.Header.Get("userId"))
+	
 	if err != nil {
-		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+        http.Error(w, "User ID Should Be Int", http.StatusBadRequest)
 		return
 	}
 
-	balances, err := h.balanceService.GetUserBalances(userID)
+	userExists := h.balanceService.UserExists(userID)
+	if !userExists {
+		http.Error(w, "Invalid Uesr ID", http.StatusNotFound)
+        return
+	}
+
+	balances, err := h.balanceService.GetUserBalancesWithUsd(userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

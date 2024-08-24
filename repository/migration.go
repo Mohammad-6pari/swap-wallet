@@ -9,13 +9,13 @@ import (
 func CreateTables(db *sql.DB) {
 	userTable := `CREATE TABLE IF NOT EXISTS users (
 		id SERIAL PRIMARY KEY,
-		username VARCHAR(255) NOT NULL
-	);`
+		username VARCHAR(255) NOT NULL UNIQUE
+		);`
 
 	cryptoTable := `CREATE TABLE IF NOT EXISTS cryptocurrencies (
 		id SERIAL PRIMARY KEY,
-		name VARCHAR(255) NOT NULL,
-		symbol VARCHAR(50) NOT NULL,
+		name VARCHAR(255) NOT NULL UNIQUE,
+		symbol VARCHAR(50) NOT NULL UNIQUE,
 		is_available BOOLEAN NOT NULL,
 		scale INT NOT NULL
 	);`

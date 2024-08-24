@@ -11,26 +11,40 @@ import (
 	"swap-wallet/config"
 	"github.com/dgrijalva/jwt-go"
 	"os"
+	"log"
 )
 
 type BalanceService struct {
 	balanceRepo *repository.BalanceRepository
 	cryptoRepo *repository.CryptocurrencyRepository
+	userRepo *repository.UserRepository
 }
 
-func NewBalanceService(balanceRepo *repository.BalanceRepository, cryptoRepo *repository.CryptocurrencyRepository) *BalanceService {
+type CryptoBalanceType struct {
+	CryptoName   string  `json:"crypto_name"`
+	CryptoBalance float64 `json:"crypto_balance"`
+	USDBalance    float64 `json:"usd_balance"`
+}
+
+func NewBalanceService(balanceRepo *repository.BalanceRepository, cryptoRepo *repository.CryptocurrencyRepository, userRepo *repository.UserRepository) *BalanceService {
 	return &BalanceService{
 		balanceRepo: balanceRepo,
 		cryptoRepo: cryptoRepo,
+		userRepo: userRepo,
 	}
 }
 
-func (s *BalanceService) formatURL(cryptoSymbol string, toSymbol string) string {
+func (s *BalanceService) UserExists(userID int) (bool) {
+	_, err := s.userRepo.GetUsername(userID)
+	return err == nil
+}
+
+func formatURL(cryptoSymbol string, toSymbol string) string {
 	return fmt.Sprintf(config.CryptoCompareAPI, cryptoSymbol, toSymbol)
 }
 
-func (s *BalanceService) getCryptoPrice(cryptoSymbol string, sourceSymbol string) (float64, error) {
-	url := s.formatURL(cryptoSymbol, sourceSymbol)
+func getCryptoPriceFromThirdParty(cryptoSymbol string, sourceSymbol string) (float64, error) {
+	url := formatURL(cryptoSymbol, sourceSymbol)
 
 	client := &http.Client{
 		Timeout: config.Timeout * time.Second,
@@ -57,12 +71,12 @@ func (s *BalanceService) getCryptoPrice(cryptoSymbol string, sourceSymbol string
 
 	_, priceNotExist := data["Response"].(string)
 	if priceNotExist {
-		originToUsd, errOriginToUsd := s.getCryptoPrice(cryptoSymbol, "USD")
+		originToUsd, errOriginToUsd := getCryptoPriceFromThirdParty(cryptoSymbol, "USD")
 		if errOriginToUsd != nil {
 			return 0, fmt.Errorf("failed to extract price for origin price from response")
 		}
 
-		sourceToUsd, errSourceToUsd := s.getCryptoPrice(sourceSymbol, "USD")
+		sourceToUsd, errSourceToUsd := getCryptoPriceFromThirdParty(sourceSymbol, "USD")
 		if errSourceToUsd != nil {
 			return 0, fmt.Errorf("failed to extract price for source price from response")
 		}
@@ -82,59 +96,101 @@ func (s *BalanceService) getCryptoPrice(cryptoSymbol string, sourceSymbol string
 	return price, nil
 }
 
-func (s *BalanceService) getCryptoPriceInUSD(cryptoSymbol string) (float64, error) {
-	return s.getCryptoPrice(cryptoSymbol, "USD")
-}
+func (s *BalanceService) getUserBalance(userID int, crypto string) (float64, error) {
+	balance, err := s.balanceRepo.GetUserBalance(userID, crypto)
 
-func (s *BalanceService) GetUserBalance(userID int, cryptoSymbol string) (float64, float64, error) {
-	balance, scale, err := s.balanceRepo.GetBalanceAndScale(userID, cryptoSymbol)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 
+	scale, err := s.cryptoRepo.GetCryptoScale(crypto)
+
+	if err != nil {
+		return 0, nil
+	}
+	
+	adjustedCryptoBalance := scaleCryptoBalance(balance, scale)
+	return adjustedCryptoBalance, nil
+}
+
+func scaleCryptoBalance(balance int64, scale int) (float64) {
 	divisor := math.Pow(10, float64(scale))
-	adjustedBalance := float64(balance) / divisor
-
-	price, err := s.getCryptoPriceInUSD(cryptoSymbol)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	usdBalance := adjustedBalance * price
-
-	return adjustedBalance, usdBalance, nil
+	return float64(balance) / divisor
 }
 
-func (s *BalanceService) GetUserBalances(userID int) (map[string]map[string]float64, error) {
-	balances, err := s.balanceRepo.GetAllBalancesForUser(userID)
+func (s *BalanceService) GetUserBalancesWithUsd(userID int) ([]CryptoBalanceType, error) {
+	cryptoBalances, err := s.getUserBalances(userID)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make(map[string]map[string]float64)
+	var result []CryptoBalanceType
 
-	for _, balance := range balances {
-		price, err := s.getCryptoPriceInUSD(balance.Symbol)
+	for _, cryptoBalance := range cryptoBalances {
+		adjustedCryptoBalance, err := s.getUserBalance(userID, cryptoBalance.CryptoName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get price for %s: %v", balance.Symbol, err)
+			return nil, fmt.Errorf("failed to get balance for %s: %v", cryptoBalance.CryptoName, err)
 		}
 
-		divisor := math.Pow(10, float64(balance.Scale))
-		adjustedBalance := float64(balance.Balance) / divisor
-		usdBalance := adjustedBalance * price
-
-		result[balance.Symbol] = map[string]float64{
-			"cryptoBalance": adjustedBalance,
-			"usdBalance":    usdBalance,
+		price, err := getCryptoPriceFromThirdParty(cryptoBalance.CryptoName, "USD")
+		if err != nil {
+			return nil, fmt.Errorf("failed to get price for %s: %v", cryptoBalance.CryptoName, err)
 		}
+
+		usdBalance := adjustedCryptoBalance * price
+		result = append(result, CryptoBalanceType{
+			CryptoName:    cryptoBalance.CryptoName,
+			CryptoBalance: adjustedCryptoBalance,
+			USDBalance:    usdBalance,
+		})
 	}
 
 	return result, nil
 }
 
+func (s *BalanceService) getUserBalances(userID int) ([]CryptoBalanceType, error) {
+	cryptoBalances, err := s.balanceRepo.GetUserBalances(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	var adjustedBalances []CryptoBalanceType
+
+	for _, cryptoBalance := range cryptoBalances {
+		scale, err := s.cryptoRepo.GetCryptoScale(cryptoBalance.CryptoName)
+		if err != nil {
+			log.Printf("Failed to get scale for %s: %v", cryptoBalance.CryptoName, err)
+			continue
+		}
+
+		adjustedBalance := scaleCryptoBalance(cryptoBalance.Balance, scale)
+		adjustedBalances = append(adjustedBalances, CryptoBalanceType{
+			CryptoName: cryptoBalance.CryptoName,
+			CryptoBalance:    adjustedBalance,
+		})
+	}
+
+	return adjustedBalances, nil
+}
+
+func (s *BalanceService) GetUserBalanceWithUsd(userID int, crypto string) (float64, float64, error) {
+	cryptoBalance, err := s.getUserBalance(userID, crypto)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	crypoPriceUSDUnit, err := getCryptoPriceFromThirdParty(crypto, "USD")
+
+	if err != nil {
+		return 0, 0, err
+	}
+
+	UsdBalance := crypoPriceUSDUnit * cryptoBalance
+	return cryptoBalance, UsdBalance, nil
+}
 
 func (s *BalanceService) GetConversionRate(sourceCrypto, targetCrypto string, amount float64) (float64, float64, error) {
-	conversionRate, err := s.getCryptoPrice(sourceCrypto, targetCrypto)
+	conversionRate, err := getCryptoPriceFromThirdParty(sourceCrypto, targetCrypto)
 	if err != nil {
 		return 0, 0, fmt.Errorf("failed to get price for %s: %v", sourceCrypto, err)
 	}

@@ -9,6 +9,11 @@ type BalanceRepository struct {
     db *sql.DB
 }
 
+type CryptoBalance struct {
+	CryptoName string `json:"crypto_name"`
+	Balance    int64  `json:"balance"`
+}
+
 func NewBalanceRepository(db *sql.DB) *BalanceRepository {
     return &BalanceRepository{db: db}
 }
@@ -35,48 +40,53 @@ func (r *BalanceRepository) GetBalanceAndScale(userID int, cryptoSymbol string) 
 	return balance, scale, nil
 }
 
-func (r *BalanceRepository) GetAllBalancesForUser(userID int) ([]struct {
-	CryptoID  int
-	Symbol    string
-	Balance   int64
-	Scale     int
-}, error) {
+func (r *BalanceRepository) GetUserBalance(userID int, crypto string) (int64, error) {
+	var balance int64
 	query := `
-		SELECT b.crypto_id, c.symbol, b.balance, c.scale
+		SELECT COALESCE(b.balance, 0)
 		FROM balances b
 		JOIN cryptocurrencies c ON b.crypto_id = c.id
-		WHERE b.user_id = $1
-	`
+		WHERE b.user_id = $1 AND c.symbol = $2
+    `
+
+	err := r.db.QueryRow(query, userID, crypto).Scan(&balance)
+	if err != nil {
+		return -1, err
+	}
+
+	return balance, nil
+}
+
+func (r *BalanceRepository) GetUserBalances(userID int) ([]CryptoBalance, error) {
+	var userBalances []CryptoBalance
+
+	query := `
+        SELECT c.symbol, COALESCE(b.balance, 0)
+        FROM balances b
+        JOIN cryptocurrencies c ON b.crypto_id = c.id
+        WHERE b.user_id = $1
+    `
+
 	rows, err := r.db.Query(query, userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch balances: %v", err)
+		return nil, err
 	}
 	defer rows.Close()
 
-	var balances []struct {
-		CryptoID  int
-		Symbol    string
-		Balance   int64
-		Scale     int
-	}
 	for rows.Next() {
-		var balance struct {
-			CryptoID  int
-			Symbol    string
-			Balance   int64
-			Scale     int
+		var ub CryptoBalance
+		err := rows.Scan(&ub.CryptoName, &ub.Balance)
+		if err != nil {
+			return nil, err
 		}
-		if err := rows.Scan(&balance.CryptoID, &balance.Symbol, &balance.Balance, &balance.Scale); err != nil {
-			return nil, fmt.Errorf("failed to scan row: %v", err)
-		}
-		balances = append(balances, balance)
+		userBalances = append(userBalances, ub)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("row iteration error: %v", err)
+		return nil, err
 	}
 
-	return balances, nil
+	return userBalances, nil
 }
 
 func (r *BalanceRepository) GetBalanceForUser(userID int, cryptoID int) (int64, error) {

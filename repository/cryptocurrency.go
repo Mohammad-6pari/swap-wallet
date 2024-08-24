@@ -34,3 +34,15 @@ func (r *CryptocurrencyRepository) FindBySymbol(symbol string) (int ,error) {
 
 	return crypto.ID, nil
 }
+
+func (r *CryptocurrencyRepository) GetCryptoScale(symbol string) (int, error) {
+	query := `SELECT slOGcale FROM cryptocurrencies WHERE symbol = $1`
+
+	var scale int
+	err := r.db.QueryRow(query, symbol).Scan(&scale)
+	if err != nil {
+		return -1, err
+	}
+
+	return scale, nil
+}
