@@ -231,7 +231,7 @@ func (s *BalanceService) GetExchangePreview(sourceCrypto, targetCrypto string, a
 		return 0, "", fmt.Errorf("error in create JWT Toekn %s", err)
 	}
 
-	err = s.redisClient.Set(context.Background(), token, token, 60*time.Second).Err()
+	err = s.redisClient.Set(context.Background(), token, 1, 60*time.Second).Err()
 	if err != nil {
 		return 0, "", fmt.Errorf("failed to store token in Redis: %v", err)
 	}
@@ -239,7 +239,33 @@ func (s *BalanceService) GetExchangePreview(sourceCrypto, targetCrypto string, a
 	return convertedAmount, token, nil
 }
 
+func (s *BalanceService) checkToken (token string) error {
+	redisKey :=  token
+	ctx := context.Background()
+
+	exists, err := s.redisClient.Exists(ctx, redisKey).Result()
+	if err != nil {
+		return fmt.Errorf("failed to check token in Redis: %v", err)
+	}
+
+	if exists == 0 {
+		return fmt.Errorf("token not found or already used")
+	}
+
+	err = s.redisClient.Del(ctx, redisKey).Err()
+	if err != nil {
+		return fmt.Errorf("failed to delete token from Redis: %v", err)
+	}
+
+	return nil
+}
+
 func (s *BalanceService) FinalizeExchange(userID int, tokenString string) error {
+	err := s.checkToken(tokenString)
+	if err != nil {
+		return err
+	}
+
 	jwtSecret := []byte(os.Getenv("JWT_SECRET"))
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -256,48 +282,37 @@ func (s *BalanceService) FinalizeExchange(userID int, tokenString string) error 
 		conversionRate := claims["conversionRate"].(float64)
 		sourceCrypto := claims["sourceCrypto"].(string)
 		targetCrypto := claims["targetCrypto"].(string)
-		amount := claims["amount"].(float64)
+		amount := claims["sourceAmount"].(float64)
 
-		balance, scale, err := s.balanceRepo.GetBalanceAndScale(userID, sourceCrypto)
+		balance, err := s.getUserBalance(userID, sourceCrypto)
 		if err != nil {
 			return fmt.Errorf("failed to get user balance: %v", err)
 		}
 
-		adjustedBalance := float64(balance) / math.Pow(10, float64(scale))
-		if adjustedBalance < amount {
+		if balance < amount {
 			return fmt.Errorf("insufficient balance")
 		}
 
-		sourceCryptoId, err := s.cryptoRepo.FindBySymbol(sourceCrypto)
-		if err != nil {
-			return fmt.Errorf("failed to find by symbol: %v", err)
-		}
-
-		newSourceBalance := adjustedBalance - amount
-		err = s.balanceRepo.UpdateBalance(userID, sourceCryptoId, int64(newSourceBalance*math.Pow(10, float64(scale))))
+		newSourceBalance := balance - amount
+		scale, _ := s.cryptoRepo.GetCryptoScale(sourceCrypto)
+		err = s.balanceRepo.UpdateBalance(userID, sourceCrypto, int64(newSourceBalance*math.Pow(10, float64(scale))))
 		if err != nil {
 			return fmt.Errorf("failed to update source balance: %v", err)
 		}
 
-		// Add to target crypto
-		targetBalance, targetScale, err := s.balanceRepo.GetBalanceAndScale(userID, targetCrypto)
+		targetBalance, err := s.getUserBalance(userID, targetCrypto)
 		if err != nil {
 			return fmt.Errorf("failed to get target balance: %v", err)
 		}
-
-		targetCryptoId, err := s.cryptoRepo.FindBySymbol(targetCrypto)
-		if err != nil {
-			return fmt.Errorf("failed to find by symbol target: %v", err)
-		}
-
-		convertedAmount := amount * conversionRate
-		newTargetBalance := (float64(targetBalance) / math.Pow(10, float64(targetScale))) + convertedAmount
-		err = s.balanceRepo.UpdateBalance(userID, targetCryptoId, int64(newTargetBalance*math.Pow(10, float64(targetScale))))
+		targetScale, _ := s.cryptoRepo.GetCryptoScale(sourceCrypto)
+		newTargetBalance := float64(targetBalance) + (amount * conversionRate)
+		err = s.balanceRepo.UpdateBalance(userID, targetCrypto, int64(newTargetBalance*math.Pow(10, float64(targetScale))))
 		if err != nil {
 			return fmt.Errorf("failed to update target balance: %v", err)
 		}
 
 		return nil
+	
 	} else {
 		return fmt.Errorf("invalid token")
 	}

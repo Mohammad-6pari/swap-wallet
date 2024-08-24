@@ -99,15 +99,15 @@ func (r *BalanceRepository) GetBalanceForUser(userID int, cryptoID int) (int64, 
 	return balance, nil
 }
 
-func (r *BalanceRepository) UpdateBalance(userID int, cryptoID int, newBalance int64) error {
+func (r *BalanceRepository) UpdateBalance(userID int, cryptoSymbol string, newBalance int64) error {
 	query := `
 		INSERT INTO balances (user_id, crypto_id, balance)
-		VALUES ($1, $2, $3)
+		VALUES ($1, (SELECT id FROM cryptocurrencies WHERE symbol = $2), $3)
 		ON CONFLICT (user_id, crypto_id)
 		DO UPDATE SET balance = EXCLUDED.balance
 	`
 
-	_, err := r.db.Exec(query, userID, cryptoID, newBalance)
+	_, err := r.db.Exec(query, userID, cryptoSymbol, newBalance)
 	if err != nil {
 		return fmt.Errorf("failed to update or insert balance: %v", err)
 	}
