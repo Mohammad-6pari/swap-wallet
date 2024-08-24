@@ -11,6 +11,9 @@ type Config struct {
 	DBUser     string
 	DBPassword string
 	DBName     string
+	REDIS_HOST string
+	REDIS_PORT string
+	REDIS_PASSWORD string
 }
 
 func LoadConfig() Config {
@@ -20,6 +23,9 @@ func LoadConfig() Config {
 		DBUser:     os.Getenv("DB_USER"),
 		DBPassword: os.Getenv("DB_PASSWORD"),
 		DBName:     os.Getenv("DB_NAME"),
+		REDIS_HOST: os.Getenv("REDIS_HOST"),
+		REDIS_PORT: os.Getenv("REDIS_PORT"),
+		REDIS_PASSWORD: os.Getenv("REDIS_PASSWORD"),
 	}
 }
 

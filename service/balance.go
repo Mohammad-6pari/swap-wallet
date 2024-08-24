@@ -13,12 +13,15 @@ import (
 	"log"
 	"fmt"
 	"github.com/joho/godotenv"
+	"github.com/go-redis/redis/v8"
+	"context"
 )
 
 type BalanceService struct {
 	balanceRepo *repository.BalanceRepository
 	cryptoRepo *repository.CryptocurrencyRepository
 	userRepo *repository.UserRepository
+	redisClient   *redis.Client
 }
 
 type CryptoBalanceType struct {
@@ -27,11 +30,12 @@ type CryptoBalanceType struct {
 	USDBalance    float64 `json:"usd_balance"`
 }
 
-func NewBalanceService(balanceRepo *repository.BalanceRepository, cryptoRepo *repository.CryptocurrencyRepository, userRepo *repository.UserRepository) *BalanceService {
+func NewBalanceService(balanceRepo *repository.BalanceRepository, cryptoRepo *repository.CryptocurrencyRepository, userRepo *repository.UserRepository, redisClient *redis.Client) *BalanceService {
 	return &BalanceService{
 		balanceRepo: balanceRepo,
 		cryptoRepo: cryptoRepo,
 		userRepo: userRepo,
+		redisClient: redisClient,
 	}
 }
 
@@ -227,6 +231,11 @@ func (s *BalanceService) GetExchangePreview(sourceCrypto, targetCrypto string, a
 		return 0, "", fmt.Errorf("error in create JWT Toekn %s", err)
 	}
 
+	err = s.redisClient.Set(context.Background(), token, convertedAmount, 60*time.Second).Err()
+	if err != nil {
+		return 0, "", fmt.Errorf("failed to store token in Redis: %v", err)
+	}
+	
 	return convertedAmount, token, nil
 }
 

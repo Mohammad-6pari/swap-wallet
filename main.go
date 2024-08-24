@@ -17,6 +17,11 @@ func main() {
 	util.CheckErr(err)
 	defer db.Close()
 
+	redisClient, err := util.ConnectRedis(cfg)
+	util.CheckErr(err)
+	defer redisClient.Close()
+
+
 	repository.CreateTables(db)
 	// consider this method just run one time
 	// repository.SeedPostgresData(db)
@@ -24,7 +29,7 @@ func main() {
 	balanceRepo := repository.NewBalanceRepository(db)
 	cryptoRepo := repository.NewCryptocurrencyRepository(db)
 	userRepo := repository.NewUserRepository(db)
-    balanceService := service.NewBalanceService(balanceRepo, cryptoRepo, userRepo)
+    balanceService := service.NewBalanceService(balanceRepo, cryptoRepo, userRepo, redisClient)
     balanceHandler := handlers.NewBalanceHandler(balanceService)
 
     router := mux.NewRouter()
