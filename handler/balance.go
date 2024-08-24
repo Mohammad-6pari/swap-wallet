@@ -112,7 +112,7 @@ func (h *BalanceHandler) GetExchangePreviewHandler(w http.ResponseWriter, r *htt
 	json.NewEncoder(w).Encode(response)
 }
 
-func (h *BalanceHandler) FinalizeConversionHandler(w http.ResponseWriter, r *http.Request) {
+func (h *BalanceHandler) FinalizeExchangeHandler(w http.ResponseWriter, r *http.Request) {
 	userId, err := h.checkUserExists(r.Header.Get("userId"))
 	if err != nil {
         http.Error(w, "Invalid User ID", http.StatusBadRequest)
@@ -130,7 +130,7 @@ func (h *BalanceHandler) FinalizeConversionHandler(w http.ResponseWriter, r *htt
 		return
 	}
 
-	err = h.balanceService.FinalizeConversion(userId, requestData.Token)
+	err = h.balanceService.FinalizeExchange(userId, requestData.Token)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

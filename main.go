@@ -36,7 +36,7 @@ func main() {
     router.HandleFunc("/balance", balanceHandler.GetUserBalance).Methods("GET")
     router.HandleFunc("/balances", balanceHandler.GetAllUserBalances).Methods("GET")
 	router.HandleFunc("/exchange/preview", balanceHandler.GetExchangePreviewHandler).Methods("GET")
-	router.HandleFunc("/balance/convert/{userId}", balanceHandler.FinalizeConversionHandler).Methods("POST")
+	router.HandleFunc("/exchange/apply", balanceHandler.FinalizeExchangeHandler).Methods("POST")
     http.ListenAndServe(":8080", router)
 
 }

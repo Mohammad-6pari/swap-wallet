@@ -231,7 +231,7 @@ func (s *BalanceService) GetExchangePreview(sourceCrypto, targetCrypto string, a
 		return 0, "", fmt.Errorf("error in create JWT Toekn %s", err)
 	}
 
-	err = s.redisClient.Set(context.Background(), token, convertedAmount, 60*time.Second).Err()
+	err = s.redisClient.Set(context.Background(), token, token, 60*time.Second).Err()
 	if err != nil {
 		return 0, "", fmt.Errorf("failed to store token in Redis: %v", err)
 	}
@@ -239,7 +239,7 @@ func (s *BalanceService) GetExchangePreview(sourceCrypto, targetCrypto string, a
 	return convertedAmount, token, nil
 }
 
-func (s *BalanceService) FinalizeConversion(userID int, tokenString string) error {
+func (s *BalanceService) FinalizeExchange(userID int, tokenString string) error {
 	jwtSecret := []byte(os.Getenv("JWT_SECRET"))
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
