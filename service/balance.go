@@ -261,11 +261,11 @@ func (s *BalanceService) checkToken (token string) error {
 }
 
 func (s *BalanceService) FinalizeExchange(userID int, tokenString string) error {
-	err := s.checkToken(tokenString)
+		err := s.checkToken(tokenString)
 	if err != nil {
 		return err
 	}
-
+	
 	jwtSecret := []byte(os.Getenv("JWT_SECRET"))
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -277,18 +277,18 @@ func (s *BalanceService) FinalizeExchange(userID int, tokenString string) error 
 	if err != nil {
 		return fmt.Errorf("invalid token: %v", err)
 	}
-
+	
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		conversionRate := claims["conversionRate"].(float64)
+		targetAmount := claims["targetAmount"].(float64)
 		sourceCrypto := claims["sourceCrypto"].(string)
 		targetCrypto := claims["targetCrypto"].(string)
 		amount := claims["sourceAmount"].(float64)
-
+		
 		balance, err := s.getUserBalance(userID, sourceCrypto)
 		if err != nil {
 			return fmt.Errorf("failed to get user balance: %v", err)
 		}
-
+		
 		if balance < amount {
 			return fmt.Errorf("insufficient balance")
 		}
@@ -299,13 +299,13 @@ func (s *BalanceService) FinalizeExchange(userID int, tokenString string) error 
 		if err != nil {
 			return fmt.Errorf("failed to update source balance: %v", err)
 		}
-
+		
 		targetBalance, err := s.getUserBalance(userID, targetCrypto)
 		if err != nil {
 			return fmt.Errorf("failed to get target balance: %v", err)
 		}
 		targetScale, _ := s.cryptoRepo.GetCryptoScale(sourceCrypto)
-		newTargetBalance := float64(targetBalance) + (amount * conversionRate)
+		newTargetBalance := float64(targetBalance) + targetAmount
 		err = s.balanceRepo.UpdateBalance(userID, targetCrypto, int64(newTargetBalance*math.Pow(10, float64(targetScale))))
 		if err != nil {
 			return fmt.Errorf("failed to update target balance: %v", err)
