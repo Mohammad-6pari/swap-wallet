@@ -46,3 +46,14 @@ func (r *CryptocurrencyRepository) GetCryptoScale(symbol string) (int, error) {
 
 	return scale, nil
 }
+
+func (r *BalanceRepository) GetCryptoScale(tx *sql.Tx, cryptoSymbol string) (int, error) {
+	query := `SELECT scale FROM cryptocurrencies WHERE symbol = $1`
+	var scale int
+	err := tx.QueryRow(query, cryptoSymbol).Scan(&scale)
+	if err != nil {
+		return -1, err
+	}
+
+	return scale, nil
+}
