@@ -5,5 +5,5 @@ type Cryptocurrency struct {
 	Name        string `json:"name"`
 	Symbol      string `json:"symbol"`
 	IsAvailable bool   `json:"is_available"`
-	Scale        int    `json:"scale"`
+	Scale       int    `json:"scale"`
 }

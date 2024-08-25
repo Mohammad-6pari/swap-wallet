@@ -1,31 +1,31 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"github.com/dgrijalva/jwt-go"
+	"github.com/go-redis/redis/v8"
+	"github.com/joho/godotenv"
 	"io/ioutil"
+	"log"
 	"math"
 	"net/http"
-	"time"
-	"swap-wallet/repository"
-	"swap-wallet/config"
-	"github.com/dgrijalva/jwt-go"
 	"os"
-	"log"
-	"fmt"
-	"github.com/joho/godotenv"
-	"github.com/go-redis/redis/v8"
-	"context"
+	"swap-wallet/config"
+	"swap-wallet/repository"
+	"time"
 )
 
 type BalanceService struct {
 	balanceRepo *repository.BalanceRepository
-	cryptoRepo *repository.CryptocurrencyRepository
-	userRepo *repository.UserRepository
-	redisClient   *redis.Client
+	cryptoRepo  *repository.CryptocurrencyRepository
+	userRepo    *repository.UserRepository
+	redisClient *redis.Client
 }
 
 type CryptoBalanceType struct {
-	CryptoName   string  `json:"crypto_name"`
+	CryptoName    string  `json:"crypto_name"`
 	CryptoBalance float64 `json:"crypto_balance"`
 	USDBalance    float64 `json:"usd_balance"`
 }
@@ -33,13 +33,13 @@ type CryptoBalanceType struct {
 func NewBalanceService(balanceRepo *repository.BalanceRepository, cryptoRepo *repository.CryptocurrencyRepository, userRepo *repository.UserRepository, redisClient *redis.Client) *BalanceService {
 	return &BalanceService{
 		balanceRepo: balanceRepo,
-		cryptoRepo: cryptoRepo,
-		userRepo: userRepo,
+		cryptoRepo:  cryptoRepo,
+		userRepo:    userRepo,
 		redisClient: redisClient,
 	}
 }
 
-func (s *BalanceService) UserExists(userID int) (bool) {
+func (s *BalanceService) UserExists(userID int) bool {
 	_, err := s.userRepo.GetUsername(userID)
 	return err == nil
 }
@@ -113,12 +113,12 @@ func (s *BalanceService) getUserBalance(userID int, crypto string) (float64, err
 	if err != nil {
 		return 0, nil
 	}
-	
+
 	adjustedCryptoBalance := scaleCryptoBalance(balance, scale)
 	return adjustedCryptoBalance, nil
 }
 
-func scaleCryptoBalance(balance int64, scale int) (float64) {
+func scaleCryptoBalance(balance int64, scale int) float64 {
 	divisor := math.Pow(10, float64(scale))
 	return float64(balance) / divisor
 }
@@ -170,8 +170,8 @@ func (s *BalanceService) getUserBalances(userID int) ([]CryptoBalanceType, error
 
 		adjustedBalance := scaleCryptoBalance(cryptoBalance.Balance, scale)
 		adjustedBalances = append(adjustedBalances, CryptoBalanceType{
-			CryptoName: cryptoBalance.CryptoName,
-			CryptoBalance:    adjustedBalance,
+			CryptoName:    cryptoBalance.CryptoName,
+			CryptoBalance: adjustedBalance,
 		})
 	}
 
@@ -203,11 +203,11 @@ func createJWTToken(source, target string, sourceAmount, targetAmount float64) (
 	jwtSecret := []byte(os.Getenv("JWT_SECRET"))
 
 	claims := jwt.MapClaims{
-		"exp":            time.Now().Add(60 * time.Second).Unix(),
-		"sourceCrypto":   source,
-		"targetCrypto":   target,
-		"sourceAmount":   sourceAmount,
-		"targetAmount":   targetAmount,
+		"exp":          time.Now().Add(60 * time.Second).Unix(),
+		"sourceCrypto": source,
+		"targetCrypto": target,
+		"sourceAmount": sourceAmount,
+		"targetAmount": targetAmount,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -235,12 +235,12 @@ func (s *BalanceService) GetExchangePreview(sourceCrypto, targetCrypto string, a
 	if err != nil {
 		return 0, "", fmt.Errorf("failed to store token in Redis: %v", err)
 	}
-	
+
 	return convertedAmount, token, nil
 }
 
-func (s *BalanceService) checkToken (token string) error {
-	redisKey :=  token
+func (s *BalanceService) checkToken(token string) error {
+	redisKey := token
 	ctx := context.Background()
 
 	exists, err := s.redisClient.Exists(ctx, redisKey).Result()

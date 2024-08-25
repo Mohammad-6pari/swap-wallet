@@ -1,14 +1,14 @@
 package handlers
 
 import (
-    "encoding/json"
-    "net/http"
-    "strconv"
-    "swap-wallet/service"
+	"encoding/json"
+	"net/http"
+	"strconv"
+	"swap-wallet/service"
 )
 
 type BalanceHandler struct {
-    balanceService *service.BalanceService
+	balanceService *service.BalanceService
 }
 
 type FinalizeRequest struct {
@@ -17,27 +17,27 @@ type FinalizeRequest struct {
 }
 
 func NewBalanceHandler(balanceService *service.BalanceService) *BalanceHandler {
-    return &BalanceHandler{balanceService: balanceService}
+	return &BalanceHandler{balanceService: balanceService}
 }
 
 func (h *BalanceHandler) GetUserBalance(w http.ResponseWriter, r *http.Request) {
 	userId, err := h.checkUserExists(r.Header.Get("userId"))
 	if err != nil {
-        http.Error(w, "Invalid User ID", http.StatusBadRequest)
+		http.Error(w, "Invalid User ID", http.StatusBadRequest)
 		return
 	}
 
 	query := r.URL.Query()
 	crypto := query.Get("crypto")
 
-    cryptoBalance, usdBalance, err := h.balanceService.GetUserBalanceWithUsd(userId, crypto)
+	cryptoBalance, usdBalance, err := h.balanceService.GetUserBalanceWithUsd(userId, crypto)
 	if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-        return
-    }
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	response := map[string]interface{}{
-		"crypto": crypto,
+		"crypto":        crypto,
 		"cryptoBalance": cryptoBalance,
 		"USDBalance":    usdBalance,
 	}
@@ -48,7 +48,7 @@ func (h *BalanceHandler) GetUserBalance(w http.ResponseWriter, r *http.Request) 
 func (h *BalanceHandler) GetAllUserBalances(w http.ResponseWriter, r *http.Request) {
 	userId, err := h.checkUserExists(r.Header.Get("userId"))
 	if err != nil {
-        http.Error(w, "Invalid User ID", http.StatusBadRequest)
+		http.Error(w, "Invalid User ID", http.StatusBadRequest)
 		return
 	}
 	balances, err := h.balanceService.GetUserBalancesWithUsd(userId)
@@ -63,14 +63,14 @@ func (h *BalanceHandler) GetAllUserBalances(w http.ResponseWriter, r *http.Reque
 
 func (h *BalanceHandler) checkUserExists(userId string) (int, error) {
 	userID, err := strconv.Atoi(userId)
-	
+
 	if err != nil {
-        return -1, err
+		return -1, err
 	}
 
 	userExists := h.balanceService.UserExists(userID)
 	if !userExists {
-        return -1, err
+		return -1, err
 	}
 	return userID, nil
 }
@@ -78,10 +78,10 @@ func (h *BalanceHandler) checkUserExists(userId string) (int, error) {
 func (h *BalanceHandler) GetExchangePreviewHandler(w http.ResponseWriter, r *http.Request) {
 	_, err := h.checkUserExists(r.Header.Get("userId"))
 	if err != nil {
-        http.Error(w, "Invalid User ID", http.StatusBadRequest)
+		http.Error(w, "Invalid User ID", http.StatusBadRequest)
 		return
 	}
-	
+
 	sourceAmountStr := r.URL.Query().Get("sourceAmount")
 	source := r.URL.Query().Get("source")
 	target := r.URL.Query().Get("target")
@@ -97,7 +97,7 @@ func (h *BalanceHandler) GetExchangePreviewHandler(w http.ResponseWriter, r *htt
 	}
 
 	convertedAmount, token, err := h.balanceService.GetExchangePreview(source, target, sourceAmount)
-	
+
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -115,10 +115,9 @@ func (h *BalanceHandler) GetExchangePreviewHandler(w http.ResponseWriter, r *htt
 func (h *BalanceHandler) FinalizeExchangeHandler(w http.ResponseWriter, r *http.Request) {
 	userId, err := h.checkUserExists(r.Header.Get("userId"))
 	if err != nil {
-        http.Error(w, "Invalid User ID", http.StatusBadRequest)
+		http.Error(w, "Invalid User ID", http.StatusBadRequest)
 		return
 	}
-
 
 	var requestData struct {
 		Token string `json:"token"`

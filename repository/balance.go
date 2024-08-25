@@ -1,13 +1,13 @@
 package repository
 
 import (
-    "database/sql"
+	"database/sql"
 	"fmt"
 	"math"
 )
 
 type BalanceRepository struct {
-    db *sql.DB
+	db *sql.DB
 }
 
 type CryptoBalance struct {
@@ -16,7 +16,7 @@ type CryptoBalance struct {
 }
 
 func NewBalanceRepository(db *sql.DB) *BalanceRepository {
-    return &BalanceRepository{db: db}
+	return &BalanceRepository{db: db}
 }
 
 func (r *BalanceRepository) GetBalanceAndScale(userID int, cryptoSymbol string) (int64, int, error) {
@@ -114,7 +114,6 @@ func (r *BalanceRepository) UpdateBalance(tx *sql.Tx, userID int, cryptoSymbol s
 
 	return nil
 }
-
 
 func (r *BalanceRepository) ExchangeBalances(userID int, sourceCrypto, targetCrypto string, sourceAmount, targetAmount float64) error {
 	tx, err := r.db.Begin()

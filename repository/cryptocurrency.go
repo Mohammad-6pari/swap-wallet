@@ -15,7 +15,7 @@ func NewCryptocurrencyRepository(db *sql.DB) *CryptocurrencyRepository {
 	}
 }
 
-func (r *CryptocurrencyRepository) FindBySymbol(symbol string) (int ,error) {
+func (r *CryptocurrencyRepository) FindBySymbol(symbol string) (int, error) {
 	query := `SELECT id, name, symbol, is_available, scale FROM cryptocurrencies WHERE symbol = $1`
 
 	var crypto model.Cryptocurrency

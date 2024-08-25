@@ -1,13 +1,13 @@
 package main
 
 import (
-	"swap-wallet/config"
-	"swap-wallet/repository"
-	"swap-wallet/util"
-	"swap-wallet/handler"
-    "swap-wallet/service"
 	"github.com/gorilla/mux"
 	"net/http"
+	"swap-wallet/config"
+	"swap-wallet/handler"
+	"swap-wallet/repository"
+	"swap-wallet/service"
+	"swap-wallet/util"
 )
 
 func main() {
@@ -21,22 +21,21 @@ func main() {
 	util.CheckErr(err)
 	defer redisClient.Close()
 
-
 	repository.CreateTables(db)
 	// consider this method just run one time
 	// repository.SeedPostgresData(db)
-	
+
 	balanceRepo := repository.NewBalanceRepository(db)
 	cryptoRepo := repository.NewCryptocurrencyRepository(db)
 	userRepo := repository.NewUserRepository(db)
-    balanceService := service.NewBalanceService(balanceRepo, cryptoRepo, userRepo, redisClient)
-    balanceHandler := handlers.NewBalanceHandler(balanceService)
+	balanceService := service.NewBalanceService(balanceRepo, cryptoRepo, userRepo, redisClient)
+	balanceHandler := handlers.NewBalanceHandler(balanceService)
 
-    router := mux.NewRouter()
-    router.HandleFunc("/balance", balanceHandler.GetUserBalance).Methods("GET")
-    router.HandleFunc("/balances", balanceHandler.GetAllUserBalances).Methods("GET")
+	router := mux.NewRouter()
+	router.HandleFunc("/balance", balanceHandler.GetUserBalance).Methods("GET")
+	router.HandleFunc("/balances", balanceHandler.GetAllUserBalances).Methods("GET")
 	router.HandleFunc("/exchange/preview", balanceHandler.GetExchangePreviewHandler).Methods("GET")
 	router.HandleFunc("/exchange/apply", balanceHandler.FinalizeExchangeHandler).Methods("POST")
-    http.ListenAndServe(":8080", router)
+	http.ListenAndServe(":8080", router)
 
 }
