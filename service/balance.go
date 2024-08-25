@@ -4,9 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/dgrijalva/jwt-go"
-	"github.com/go-redis/redis/v8"
-	"github.com/joho/godotenv"
 	"io/ioutil"
 	"log"
 	"math"
@@ -15,6 +12,10 @@ import (
 	"swap-wallet/config"
 	"swap-wallet/repository"
 	"time"
+
+	"github.com/dgrijalva/jwt-go"
+	"github.com/go-redis/redis/v8"
+	"github.com/joho/godotenv"
 )
 
 type BalanceService struct {

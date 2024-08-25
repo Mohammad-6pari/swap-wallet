@@ -3,8 +3,9 @@ package util
 import (
 	"context"
 	"fmt"
-	"github.com/go-redis/redis/v8"
 	"swap-wallet/config"
+
+	"github.com/go-redis/redis/v8"
 )
 
 func ConnectRedis(cfg config.Config) (*redis.Client, error) {

@@ -1,13 +1,14 @@
 package main
 
 import (
-	"github.com/gorilla/mux"
 	"net/http"
 	"swap-wallet/config"
-	"swap-wallet/handler"
+	handlers "swap-wallet/handler"
 	"swap-wallet/repository"
 	"swap-wallet/service"
 	"swap-wallet/util"
+
+	"github.com/gorilla/mux"
 )
 
 func main() {

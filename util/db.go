@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"log"
 
-	_ "github.com/lib/pq"
 	"swap-wallet/config"
+
+	_ "github.com/lib/pq"
 )
 
 func ConnectDB(cfg config.Config) (*sql.DB, error) {
